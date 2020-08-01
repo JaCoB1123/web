@@ -4,7 +4,6 @@ package web
 
 import (
 	"crypto/tls"
-	"golang.org/x/net/websocket"
 	"log"
 	"mime"
 	"net/http"
@@ -12,6 +11,8 @@ import (
 	"path"
 	"reflect"
 	"strings"
+
+	"golang.org/x/net/websocket"
 )
 
 // A Context object is created for every incoming HTTP request, and is
@@ -145,11 +146,6 @@ func Run(addr string) {
 // RunTLS starts the web application and serves HTTPS requests for the main server.
 func RunTLS(addr string, config *tls.Config) {
 	mainServer.RunTLS(addr, config)
-}
-
-// RunScgi starts the web application and serves SCGI requests for the main server.
-func RunScgi(addr string) {
-	mainServer.RunScgi(addr)
 }
 
 // RunFcgi starts the web application and serves FastCGI requests for the main server.

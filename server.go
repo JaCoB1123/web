@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
-	"golang.org/x/net/websocket"
 	"log"
 	"net"
 	"net/http"
@@ -17,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/net/websocket"
 )
 
 // ServerConfig is configuration for server objects.
@@ -171,13 +172,6 @@ func (s *Server) RunFcgi(addr string) {
 	s.initServer()
 	s.Logger.Printf("web.go serving fcgi %s\n", addr)
 	s.listenAndServeFcgi(addr)
-}
-
-// RunScgi starts the web application and serves SCGI requests for s.
-func (s *Server) RunScgi(addr string) {
-	s.initServer()
-	s.Logger.Printf("web.go serving scgi %s\n", addr)
-	s.listenAndServeScgi(addr)
 }
 
 // RunTLS starts the web application and serves HTTPS requests for s.
