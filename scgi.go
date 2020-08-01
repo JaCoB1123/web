@@ -143,7 +143,7 @@ func (s *Server) handleScgiRequest(fd io.ReadWriteCloser) {
 	defer fd.Close()
 	req, err := s.readScgiRequest(fd)
 	if err != nil {
-		s.Logger.Println("Error reading SCGI request: %q", err.Error())
+		s.Logger.Printf("Error reading SCGI request: %q\n", err.Error())
 		return
 	}
 	sc := scgiConn{fd, req, make(map[string][]string), false}
@@ -152,7 +152,6 @@ func (s *Server) handleScgiRequest(fd io.ReadWriteCloser) {
 }
 
 func (s *Server) listenAndServeScgi(addr string) error {
-
 	var l net.Listener
 	var err error
 
@@ -177,7 +176,7 @@ func (s *Server) listenAndServeScgi(addr string) error {
 			s.Logger.Println("SCGI accept error", err.Error())
 			return err
 		}
+
 		go s.handleScgiRequest(fd)
 	}
-	return nil
 }

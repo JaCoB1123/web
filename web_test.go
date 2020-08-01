@@ -461,10 +461,10 @@ func TestReadScgiRequest(t *testing.T) {
 	var s Server
 	httpReq, err := s.readScgiRequest(&ioBuffer{input: req, output: nil})
 	if err != nil {
-		t.Fatalf("Error while reading SCGI request: ", err.Error())
+		t.Fatalf("Error while reading SCGI request: %s", err.Error())
 	}
 	if httpReq.ContentLength != 12 {
-		t.Fatalf("Content length mismatch, expected %d, got %d ", 12, httpReq.ContentLength)
+		t.Fatalf("Content length mismatch, expected %d, got %d", 12, httpReq.ContentLength)
 	}
 	var body bytes.Buffer
 	io.Copy(&body, httpReq.Body)
