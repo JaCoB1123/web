@@ -167,13 +167,6 @@ func (s *Server) Run(addr string) {
 	s.l.Close()
 }
 
-// RunFcgi starts the web application and serves FastCGI requests for s.
-func (s *Server) RunFcgi(addr string) {
-	s.initServer()
-	s.Logger.Printf("web.go serving fcgi %s\n", addr)
-	s.listenAndServeFcgi(addr)
-}
-
 // RunTLS starts the web application and serves HTTPS requests for s.
 func (s *Server) RunTLS(addr string, config *tls.Config) error {
 	s.initServer()

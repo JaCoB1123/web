@@ -148,11 +148,6 @@ func RunTLS(addr string, config *tls.Config) {
 	mainServer.RunTLS(addr, config)
 }
 
-// RunFcgi starts the web application and serves FastCGI requests for the main server.
-func RunFcgi(addr string) {
-	mainServer.RunFcgi(addr)
-}
-
 // Close stops the main server.
 func Close() {
 	mainServer.Close()
