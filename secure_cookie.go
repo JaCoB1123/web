@@ -9,9 +9,10 @@ import (
 	"crypto/sha512"
 	"encoding/base64"
 	"errors"
-	"golang.org/x/crypto/pbkdf2"
 	"io"
 	"strings"
+
+	"golang.org/x/crypto/pbkdf2"
 )
 
 const (

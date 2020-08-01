@@ -1,8 +1,9 @@
 package web
 
 import (
-	"golang.org/x/crypto/ssh/terminal"
 	"syscall"
+
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 var ttyCodes struct {
@@ -22,7 +23,7 @@ func ttyBold(code string) string {
 }
 
 func ttyEscape(code string) string {
-	if terminal.IsTerminal(syscall.Stdout) {
+	if terminal.IsTerminal(syscall.STD_OUTPUT_HANDLE) {
 		return "\x1b[" + code + "m"
 	} else {
 		return ""
