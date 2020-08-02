@@ -2,10 +2,8 @@ package web
 
 import (
 	"bytes"
-	"crypto/tls"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"net/http/pprof"
 	"os"
@@ -16,8 +14,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"golang.org/x/net/websocket"
 )
 
 // ServerConfig is configuration for server objects.
@@ -38,7 +34,6 @@ type Server struct {
 	Logger       *log.Logger
 	Env          map[string]interface{}
 	TypeHandlers []func(reflect.Type, []string, int, *Context) (reflect.Value, error)
-	l            net.Listener //save the listener so it can be closed
 	encKey       []byte
 	signKey      []byte
 }
@@ -59,6 +54,13 @@ func (s *Server) initServer() {
 
 	if s.Logger == nil {
 		s.Logger = log.New(os.Stdout, "", log.Ldate|log.Ltime)
+	}
+
+	if s.Config.Profiler {
+		s.Get("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
+		s.Get("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
+		s.Get("/debug/pprof/heap", pprof.Handler("heap"))
+		s.Get("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
 	}
 
 	if len(s.Config.CookieSecret) > 0 {
@@ -96,16 +98,21 @@ func (s *Server) addRoute(pathRegex string, method string, handler interface{}) 
 }
 
 // ServeHTTP is the interface method for Go's http server package
-func (s *Server) ServeHTTP(c http.ResponseWriter, req *http.Request) {
+func (s Server) ServeHTTP(c http.ResponseWriter, req *http.Request) {
 	s.Process(c, req)
 }
 
 // Process invokes the routing system for server s
-func (s *Server) Process(c http.ResponseWriter, req *http.Request) {
+func (s Server) Process(c http.ResponseWriter, req *http.Request) {
 	route := s.routeHandler(req, c)
 	if route != nil {
 		route.httpHandler.ServeHTTP(c, req)
 	}
+}
+
+// Head adds a handler for the 'HEAD' http method for server s.
+func (s *Server) Head(route string, handler interface{}) {
+	s.addRoute(route, "GET", handler)
 }
 
 // Get adds a handler for the 'GET' http method for server s.
@@ -133,63 +140,9 @@ func (s *Server) Match(method string, route string, handler interface{}) {
 	s.addRoute(route, method, handler)
 }
 
-// Add a custom http.Handler. Will have no effect when running as FCGI or SCGI.
+// Add a custom http.Handler
 func (s *Server) Handle(route string, method string, httpHandler http.Handler) {
 	s.addRoute(route, method, httpHandler)
-}
-
-//Adds a handler for websockets. Only for webserver mode. Will have no effect when running as FCGI or SCGI.
-func (s *Server) Websocket(route string, httpHandler websocket.Handler) {
-	s.addRoute(route, "GET", httpHandler)
-}
-
-// Run starts the web application and serves HTTP requests for s
-func (s *Server) Run(addr string) {
-	s.initServer()
-
-	mux := http.NewServeMux()
-	if s.Config.Profiler {
-		mux.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
-		mux.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
-		mux.Handle("/debug/pprof/heap", pprof.Handler("heap"))
-		mux.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
-	}
-	mux.Handle("/", s)
-
-	l, err := net.Listen("tcp", addr)
-	if err != nil {
-		log.Fatal("ListenAndServe:", err)
-	}
-
-	s.Logger.Printf("web.go serving %s\n", l.Addr())
-
-	s.l = l
-	err = http.Serve(s.l, mux)
-	s.l.Close()
-}
-
-// RunTLS starts the web application and serves HTTPS requests for s.
-func (s *Server) RunTLS(addr string, config *tls.Config) error {
-	s.initServer()
-	mux := http.NewServeMux()
-	mux.Handle("/", s)
-
-	l, err := tls.Listen("tcp", addr, config)
-	if err != nil {
-		log.Fatal("Listen:", err)
-		return err
-	}
-	s.Logger.Printf("web.go serving %s\n", l.Addr())
-
-	s.l = l
-	return http.Serve(s.l, mux)
-}
-
-// Close stops server s.
-func (s *Server) Close() {
-	if s.l != nil {
-		s.l.Close()
-	}
 }
 
 // safelyCall invokes `function` in recover block

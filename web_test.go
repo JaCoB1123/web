@@ -473,11 +473,6 @@ func TestEmptySecureCookie(t *testing.T) {
 	}
 }
 
-func TestEarlyClose(t *testing.T) {
-	var server1 Server
-	server1.Close()
-}
-
 func TestOptions(t *testing.T) {
 	resp := getTestResponse("OPTIONS", "/options", "", nil, nil)
 	if resp.headers["Access-Control-Allow-Methods"][0] != "POST, GET, OPTIONS" {
