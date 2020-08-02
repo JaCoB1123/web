@@ -69,29 +69,29 @@ func (s *Server) initServer() {
 }
 
 type route struct {
-	r           string
-	cr          *regexp.Regexp
+	path        string
+	pathRegex   *regexp.Regexp
 	method      string
 	handler     reflect.Value
 	httpHandler http.Handler
 }
 
-func (s *Server) addRoute(r string, method string, handler interface{}) {
-	cr, err := regexp.Compile(r)
+func (s *Server) addRoute(pathRegex string, method string, handler interface{}) {
+	cr, err := regexp.Compile(pathRegex)
 	if err != nil {
-		s.Logger.Printf("Error in route regex %q\n", r)
+		s.Logger.Printf("Error in route regex %q\n", pathRegex)
 		return
 	}
 
 	switch handler.(type) {
 	case http.Handler:
-		s.routes = append(s.routes, route{r: r, cr: cr, method: method, httpHandler: handler.(http.Handler)})
+		s.routes = append(s.routes, route{path: pathRegex, pathRegex: cr, method: method, httpHandler: handler.(http.Handler)})
 	case reflect.Value:
 		fv := handler.(reflect.Value)
-		s.routes = append(s.routes, route{r: r, cr: cr, method: method, handler: fv})
+		s.routes = append(s.routes, route{path: pathRegex, pathRegex: cr, method: method, handler: fv})
 	default:
 		fv := reflect.ValueOf(handler)
-		s.routes = append(s.routes, route{r: r, cr: cr, method: method, handler: fv})
+		s.routes = append(s.routes, route{path: pathRegex, pathRegex: cr, method: method, handler: fv})
 	}
 }
 
@@ -319,7 +319,7 @@ func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused 
 
 	for i := 0; i < len(s.routes); i++ {
 		route := s.routes[i]
-		cr := route.cr
+		cr := route.pathRegex
 		//if the methods don't match, skip this handler (except HEAD can be used in place of GET)
 		if req.Method != route.method && !(req.Method == "HEAD" && route.method == "GET") {
 			continue
