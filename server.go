@@ -215,27 +215,6 @@ func (s *Server) safelyCall(function reflect.Value, args []reflect.Value) (resp 
 	return function.Call(args), nil
 }
 
-// requiresContext determines whether 'handlerType' contains
-// an argument to 'web.Ctx' as its first argument
-func requiresContext(handlerType reflect.Type) bool {
-	//if the method doesn't take arguments, no
-	if handlerType.NumIn() == 0 {
-		return false
-	}
-
-	//if the first argument is not a pointer, no
-	a0 := handlerType.In(0)
-	if a0.Kind() != reflect.Ptr {
-		return false
-	}
-	//if the first argument is a context, yes
-	if a0.Elem() == contextType {
-		return true
-	}
-
-	return false
-}
-
 // tryServingFile attempts to serve a static file, and returns
 // whether or not the operation is successful.
 // It checks the following directories for the file, in order:
@@ -365,11 +344,30 @@ func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused 
 
 		var args []reflect.Value
 		handlerType := route.handler.Type()
-		if requiresContext(handlerType) {
-			args = append(args, reflect.ValueOf(&ctx))
-		}
-		for _, arg := range match[1:] {
-			args = append(args, reflect.ValueOf(arg))
+
+		numIn := handlerType.NumIn()
+
+		iVal := 1
+		for iArg := 0; iArg < numIn; iArg++ {
+
+			arg := handlerType.In(iArg)
+
+			switch arg.Kind() {
+			case reflect.Ptr:
+				//if the first argument is a context, yes
+				if arg.Elem() == contextType {
+					args = append(args, reflect.ValueOf(&ctx))
+					continue
+				}
+			case reflect.String:
+				args = append(args, reflect.ValueOf(match[iVal]))
+				iVal++
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				val := match[iVal]
+				intVal, _ := strconv.Atoi(val)
+				args = append(args, reflect.ValueOf(intVal))
+				iVal++
+			}
 		}
 
 		ret, err := s.safelyCall(route.handler, args)
