@@ -382,6 +382,43 @@ func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused 
 	return
 }
 
+var typeHandlers []func(reflect.Type, []string, int, *Context) (reflect.Value, error)
+
+func init() {
+	typeHandlers = append(typeHandlers, getString)
+	typeHandlers = append(typeHandlers, getInt)
+	typeHandlers = append(typeHandlers, getContext)
+}
+
+var NoValueNeeded = fmt.Errorf("No value needed")
+var NotSupported = fmt.Errorf("Type is not supported")
+
+func getString(t reflect.Type, values []string, valueIndex int, ctx *Context) (reflect.Value, error) {
+	if t.Kind() != reflect.String {
+		return reflect.Value{}, NotSupported
+	}
+
+	return reflect.ValueOf(values[valueIndex]), nil
+}
+
+func getInt(t reflect.Type, values []string, valueIndex int, ctx *Context) (reflect.Value, error) {
+	switch t.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		intVal, _ := strconv.Atoi(values[valueIndex])
+		return reflect.ValueOf(intVal), nil
+	default:
+		return reflect.Value{}, NotSupported
+	}
+}
+
+func getContext(t reflect.Type, values []string, valueIndex int, ctx *Context) (reflect.Value, error) {
+	if t.Kind() != reflect.Ptr || t.Elem() != contextType {
+		return reflect.Value{}, NotSupported
+	}
+
+	return reflect.ValueOf(ctx), NoValueNeeded
+}
+
 func getArgsForFunction(function reflect.Value, ctx *Context, values []string) []reflect.Value {
 	var args []reflect.Value
 	functionType := function.Type()
@@ -393,22 +430,21 @@ func getArgsForFunction(function reflect.Value, ctx *Context, values []string) [
 
 		arg := functionType.In(iArg)
 
-		switch arg.Kind() {
-		case reflect.Ptr:
-			//if the first argument is a context, yes
-			if arg.Elem() == contextType {
-				args = append(args, reflect.ValueOf(ctx))
-				continue
+		var err error
+		var result reflect.Value
+		for _, typeHandler := range typeHandlers {
+			result, err = typeHandler(arg, values, iVal, ctx)
+			if err != NotSupported {
+				break
 			}
-		case reflect.String:
-			args = append(args, reflect.ValueOf(values[iVal]))
-			iVal++
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			val := values[iVal]
-			intVal, _ := strconv.Atoi(val)
-			args = append(args, reflect.ValueOf(intVal))
-			iVal++
 		}
+
+		args = append(args, result)
+		if err == NoValueNeeded {
+			continue
+		}
+
+		iVal++
 	}
 	return args
 }
