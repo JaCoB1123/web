@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/JaCoB1123/web"
 )
@@ -38,7 +39,8 @@ func process(ctx *web.Context) string {
 }
 
 func main() {
-	web.Get("/", index)
-	web.Post("/process", process)
-	web.Run("0.0.0.0:9999")
+	server := web.NewServer()
+	server.Get("/", index)
+	server.Post("/process", process)
+	http.ListenAndServe("0.0.0.0:9999", server)
 }

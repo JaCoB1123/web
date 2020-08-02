@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"html"
+	"net/http"
 
 	"github.com/JaCoB1123/web"
 )
@@ -46,8 +47,9 @@ func update(ctx *web.Context) {
 }
 
 func main() {
-	web.Config.CookieSecret = "a long secure cookie secret"
-	web.Get("/", index)
-	web.Post("/update", update)
-	web.Run("0.0.0.0:9999")
+	server := web.NewServer()
+	server.Config.CookieSecret = "a long secure cookie secret"
+	server.Get("/", index)
+	server.Post("/update", update)
+	http.ListenAndServe("0.0.0.0:9999", server)
 }

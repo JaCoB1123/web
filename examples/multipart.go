@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"fmt"
 	"io"
+	"net/http"
 
 	"github.com/JaCoB1123/web"
 )
@@ -57,7 +58,8 @@ func multipart(ctx *web.Context) string {
 }
 
 func main() {
-	web.Get("/", index)
-	web.Post("/multipart", multipart)
-	web.Run("0.0.0.0:9999")
+	server := web.NewServer()
+	server.Get("/", index)
+	server.Post("/multipart", multipart)
+	http.ListenAndServe("0.0.0.0:9999", server)
 }

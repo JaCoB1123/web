@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/JaCoB1123/web"
 )
@@ -15,7 +16,9 @@ func helloInt(intval int, val string) string {
 }
 
 func main() {
-	web.Get("/([-+]?[0-9]*)/(.*)", helloInt)
-	web.Get("/(.*)", hello)
-	web.Run("0.0.0.0:9999")
+	server := web.NewServer()
+	server.Get("/([-+]?[0-9]*)/(.*)", helloInt)
+	server.Get("/(.*)", hello)
+
+	http.ListenAndServe(":9999", server)
 }
