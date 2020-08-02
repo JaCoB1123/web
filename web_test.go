@@ -181,10 +181,9 @@ func init() {
 	testServer.Post("/post/echo/(.*)", func(s string) string { return s })
 	testServer.Post("/post/echoparam/(.*)", func(ctx *Context, name string) string { return ctx.Params[name] })
 
-	testServer.Get("/error/code/(.*)", func(ctx *Context, code string) string {
-		n, _ := strconv.Atoi(code)
-		message := http.StatusText(n)
-		ctx.Abort(n, message)
+	testServer.Get("/error/code/([0-9]*)", func(ctx *Context, code int) string {
+		message := http.StatusText(code)
+		ctx.Abort(code, message)
 		return ""
 	})
 
