@@ -33,21 +33,22 @@ type ServerConfig struct {
 
 // Server represents a web.go server.
 type Server struct {
-	Config *ServerConfig
-	routes []route
-	Logger *log.Logger
-	Env    map[string]interface{}
-	//save the listener so it can be closed
-	l       net.Listener
-	encKey  []byte
-	signKey []byte
+	Config       *ServerConfig
+	routes       []route
+	Logger       *log.Logger
+	Env          map[string]interface{}
+	TypeHandlers []func(reflect.Type, []string, int, *Context) (reflect.Value, error)
+	l            net.Listener //save the listener so it can be closed
+	encKey       []byte
+	signKey      []byte
 }
 
 func NewServer() *Server {
 	return &Server{
-		Config: Config,
-		Logger: log.New(os.Stdout, "", log.Ldate|log.Ltime),
-		Env:    map[string]interface{}{},
+		Config:       Config,
+		Logger:       log.New(os.Stdout, "", log.Ldate|log.Ltime),
+		Env:          map[string]interface{}{},
+		TypeHandlers: []func(reflect.Type, []string, int, *Context) (reflect.Value, error){getString, getInt, getContext},
 	}
 }
 
@@ -342,7 +343,7 @@ func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused 
 		// set the default content-type
 		ctx.SetHeader("Content-Type", "text/html; charset=utf-8", true)
 
-		args := getArgsForFunction(route.handler, &ctx, match)
+		args := s.getArgsForFunction(route.handler, &ctx, match)
 
 		ret, err := s.safelyCall(route.handler, args)
 		if err != nil {
@@ -382,14 +383,6 @@ func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused 
 	return
 }
 
-var typeHandlers []func(reflect.Type, []string, int, *Context) (reflect.Value, error)
-
-func init() {
-	typeHandlers = append(typeHandlers, getString)
-	typeHandlers = append(typeHandlers, getInt)
-	typeHandlers = append(typeHandlers, getContext)
-}
-
 var NoValueNeeded = fmt.Errorf("No value needed")
 var NotSupported = fmt.Errorf("Type is not supported")
 
@@ -419,7 +412,7 @@ func getContext(t reflect.Type, values []string, valueIndex int, ctx *Context) (
 	return reflect.ValueOf(ctx), NoValueNeeded
 }
 
-func getArgsForFunction(function reflect.Value, ctx *Context, values []string) []reflect.Value {
+func (s *Server) getArgsForFunction(function reflect.Value, ctx *Context, values []string) []reflect.Value {
 	var args []reflect.Value
 	functionType := function.Type()
 
@@ -432,7 +425,7 @@ func getArgsForFunction(function reflect.Value, ctx *Context, values []string) [
 
 		var err error
 		var result reflect.Value
-		for _, typeHandler := range typeHandlers {
+		for _, typeHandler := range s.TypeHandlers {
 			result, err = typeHandler(arg, values, iVal, ctx)
 			if err != NotSupported {
 				break
