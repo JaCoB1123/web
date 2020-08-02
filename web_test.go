@@ -17,8 +17,11 @@ import (
 	"testing"
 )
 
+var testServer *Server
+
 func init() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
+	testServer = NewServer()
 }
 
 type dummyConnection struct {
@@ -147,7 +150,7 @@ func getTestResponse(method string, path string, body string, headers map[string
 
 	tcpb := ioBuffer{input: nil, output: &buf}
 	c := dummyConnection{wroteHeaders: false, req: req, headers: make(map[string][]string), fd: &tcpb}
-	mainServer.Process(&c, req)
+	testServer.Process(&c, req)
 	return buildTestResponse(&buf)
 }
 
@@ -170,70 +173,70 @@ type Test struct {
 
 //initialize the routes
 func init() {
-	mainServer.SetLogger(log.New(ioutil.Discard, "", 0))
-	Get("/", func() string { return "index" })
-	Get("/panic", func() { panic(0) })
-	Get("/echo/(.*)", func(s string) string { return s })
-	Get("/multiecho/(.*)/(.*)/(.*)/(.*)", func(a, b, c, d string) string { return a + b + c + d })
-	Post("/post/echo/(.*)", func(s string) string { return s })
-	Post("/post/echoparam/(.*)", func(ctx *Context, name string) string { return ctx.Params[name] })
+	testServer.SetLogger(log.New(ioutil.Discard, "", 0))
+	testServer.Get("/", func() string { return "index" })
+	testServer.Get("/panic", func() { panic(0) })
+	testServer.Get("/echo/(.*)", func(s string) string { return s })
+	testServer.Get("/multiecho/(.*)/(.*)/(.*)/(.*)", func(a, b, c, d string) string { return a + b + c + d })
+	testServer.Post("/post/echo/(.*)", func(s string) string { return s })
+	testServer.Post("/post/echoparam/(.*)", func(ctx *Context, name string) string { return ctx.Params[name] })
 
-	Get("/error/code/(.*)", func(ctx *Context, code string) string {
+	testServer.Get("/error/code/(.*)", func(ctx *Context, code string) string {
 		n, _ := strconv.Atoi(code)
 		message := http.StatusText(n)
 		ctx.Abort(n, message)
 		return ""
 	})
 
-	Get("/error/notfound/(.*)", func(ctx *Context, message string) { ctx.NotFound(message) })
+	testServer.Get("/error/notfound/(.*)", func(ctx *Context, message string) { ctx.NotFound(message) })
 
-	Get("/error/badrequest", func(ctx *Context) { ctx.BadRequest() })
-	Post("/error/badrequest", func(ctx *Context) { ctx.BadRequest() })
+	testServer.Get("/error/badrequest", func(ctx *Context) { ctx.BadRequest() })
+	testServer.Post("/error/badrequest", func(ctx *Context) { ctx.BadRequest() })
 
-	Get("/error/unauthorized", func(ctx *Context) { ctx.Unauthorized() })
-	Post("/error/unauthorized", func(ctx *Context) { ctx.Unauthorized() })
+	testServer.Get("/error/unauthorized", func(ctx *Context) { ctx.Unauthorized() })
+	testServer.Post("/error/unauthorized", func(ctx *Context) { ctx.Unauthorized() })
 
-	Get("/error/forbidden", func(ctx *Context) { ctx.Forbidden() })
-	Post("/error/forbidden", func(ctx *Context) { ctx.Forbidden() })
+	testServer.Get("/error/forbidden", func(ctx *Context) { ctx.Forbidden() })
+	testServer.Post("/error/forbidden", func(ctx *Context) { ctx.Forbidden() })
 
-	Post("/posterror/code/(.*)/(.*)", func(ctx *Context, code string, message string) string {
+	testServer.Post("/posterror/code/(.*)/(.*)", func(ctx *Context, code string, message string) string {
 		n, _ := strconv.Atoi(code)
 		ctx.Abort(n, message)
 		return ""
 	})
 
-	Get("/writetest", func(ctx *Context) { ctx.WriteString("hello") })
+	testServer.Get("/writetest", func(ctx *Context) { ctx.WriteString("hello") })
 
-	Post("/securecookie/set/(.+)/(.+)", func(ctx *Context, name string, val string) string {
+	testServer.Post("/securecookie/set/(.+)/(.+)", func(ctx *Context, name string, val string) string {
 		ctx.SetSecureCookie(name, val, 60)
 		return ""
 	})
 
-	Get("/securecookie/get/(.+)", func(ctx *Context, name string) string {
+	testServer.Get("/securecookie/get/(.+)", func(ctx *Context, name string) string {
 		val, ok := ctx.GetSecureCookie(name)
 		if !ok {
 			return ""
 		}
 		return val
 	})
-	Get("/getparam", func(ctx *Context) string { return ctx.Params["a"] })
-	Get("/fullparams", func(ctx *Context) string {
+	testServer.Get("/getparam", func(ctx *Context) string { return ctx.Params["a"] })
+	testServer.Get("/fullparams", func(ctx *Context) string {
 		return strings.Join(ctx.Request.Form["a"], ",")
 	})
 
-	Get("/json", func(ctx *Context) string {
+	testServer.Get("/json", func(ctx *Context) string {
 		ctx.ContentType("json")
 		data, _ := json.Marshal(ctx.Params)
 		return string(data)
 	})
 
-	Get("/jsonbytes", func(ctx *Context) []byte {
+	testServer.Get("/jsonbytes", func(ctx *Context) []byte {
 		ctx.ContentType("json")
 		data, _ := json.Marshal(ctx.Params)
 		return data
 	})
 
-	Post("/parsejson", func(ctx *Context) string {
+	testServer.Post("/parsejson", func(ctx *Context) string {
 		var tmp = struct {
 			A string
 			B string
@@ -242,18 +245,18 @@ func init() {
 		return tmp.A + " " + tmp.B
 	})
 
-	Match("OPTIONS", "/options", func(ctx *Context) {
+	testServer.Match("OPTIONS", "/options", func(ctx *Context) {
 		ctx.SetHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS", true)
 		ctx.SetHeader("Access-Control-Max-Age", "1000", true)
 		ctx.WriteHeader(200)
 	})
 
-	Get("/dupeheader", func(ctx *Context) string {
+	testServer.Get("/dupeheader", func(ctx *Context) string {
 		ctx.SetHeader("Server", "myserver", true)
 		return ""
 	})
 
-	Get("/authorization", func(ctx *Context) string {
+	testServer.Get("/authorization", func(ctx *Context) string {
 		user, pass, err := ctx.GetBasicAuth()
 		if err != nil {
 			return "fail"
@@ -444,8 +447,8 @@ func makeCookie(vals map[string]string) []*http.Cookie {
 }
 
 func TestSecureCookie(t *testing.T) {
-	mainServer.Config.CookieSecret = "7C19QRmwf3mHZ9CPAaPQ0hsWeufKd"
-	mainServer.initServer()
+	testServer.Config.CookieSecret = "7C19QRmwf3mHZ9CPAaPQ0hsWeufKd"
+	testServer.initServer()
 	resp1 := getTestResponse("POST", "/securecookie/set/a/1", "", nil, nil)
 	sval, ok := resp1.cookies["a"]
 	if !ok {
@@ -461,7 +464,7 @@ func TestSecureCookie(t *testing.T) {
 }
 
 func TestEmptySecureCookie(t *testing.T) {
-	mainServer.Config.CookieSecret = "7C19QRmwf3mHZ9CPAaPQ0hsWeufKd"
+	testServer.Config.CookieSecret = "7C19QRmwf3mHZ9CPAaPQ0hsWeufKd"
 	cookies := makeCookie(map[string]string{"empty": ""})
 
 	resp2 := getTestResponse("GET", "/securecookie/get/empty", "", nil, cookies)

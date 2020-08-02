@@ -3,16 +3,12 @@
 package web
 
 import (
-	"crypto/tls"
-	"log"
 	"mime"
 	"net/http"
 	"os"
 	"path"
 	"reflect"
 	"strings"
-
-	"golang.org/x/net/websocket"
 )
 
 // A Context object is created for every incoming HTTP request, and is
@@ -133,70 +129,8 @@ func init() {
 	return
 }
 
-// Process invokes the main server's routing system.
-func Process(c http.ResponseWriter, req *http.Request) {
-	mainServer.Process(c, req)
-}
-
-// Run starts the web application and serves HTTP requests for the main server.
-func Run(addr string) {
-	mainServer.Run(addr)
-}
-
-// RunTLS starts the web application and serves HTTPS requests for the main server.
-func RunTLS(addr string, config *tls.Config) {
-	mainServer.RunTLS(addr, config)
-}
-
-// Close stops the main server.
-func Close() {
-	mainServer.Close()
-}
-
-// Get adds a handler for the 'GET' http method in the main server.
-func Get(route string, handler interface{}) {
-	mainServer.Get(route, handler)
-}
-
-// Post adds a handler for the 'POST' http method in the main server.
-func Post(route string, handler interface{}) {
-	mainServer.addRoute(route, "POST", handler)
-}
-
-// Put adds a handler for the 'PUT' http method in the main server.
-func Put(route string, handler interface{}) {
-	mainServer.addRoute(route, "PUT", handler)
-}
-
-// Delete adds a handler for the 'DELETE' http method in the main server.
-func Delete(route string, handler interface{}) {
-	mainServer.addRoute(route, "DELETE", handler)
-}
-
-// Match adds a handler for an arbitrary http method in the main server.
-func Match(method string, route string, handler interface{}) {
-	mainServer.addRoute(route, method, handler)
-}
-
-// Add a custom http.Handler. Will have no effect when running as FCGI or SCGI.
-func Handle(route string, method string, httpHandler http.Handler) {
-	mainServer.Handle(route, method, httpHandler)
-}
-
-//Adds a handler for websockets. Only for webserver mode. Will have no effect when running as FCGI or SCGI.
-func Websocket(route string, httpHandler websocket.Handler) {
-	mainServer.Websocket(route, httpHandler)
-}
-
-// SetLogger sets the logger for the main server.
-func SetLogger(logger *log.Logger) {
-	mainServer.Logger = logger
-}
-
 // Config is the configuration of the main server.
 var Config = &ServerConfig{
 	RecoverPanic: true,
 	ColorOutput:  true,
 }
-
-var mainServer = NewServer()
