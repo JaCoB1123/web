@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/hoisie/web"
+	"github.com/JaCoB1123/web"
 )
 
 func hello1(val string) string { return "hello1 " + val + "\n" }

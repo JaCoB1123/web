@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"crypto/md5"
 	"fmt"
-	"github.com/hoisie/web"
 	"io"
+
+	"github.com/JaCoB1123/web"
 )
 
 func Md5(r io.Reader) string {

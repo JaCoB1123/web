@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/hoisie/web"
 	"html"
+
+	"github.com/JaCoB1123/web"
 )
 
 var cookieName = "cookie"

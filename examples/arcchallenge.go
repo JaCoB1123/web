@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/hoisie/web"
 	"math/rand"
 	"time"
+
+	"github.com/JaCoB1123/web"
 )
 
 var form = `<form action="say" method="POST"><input name="said"><input type="submit"></form>`
