@@ -342,33 +342,7 @@ func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused 
 		// set the default content-type
 		ctx.SetHeader("Content-Type", "text/html; charset=utf-8", true)
 
-		var args []reflect.Value
-		handlerType := route.handler.Type()
-
-		numIn := handlerType.NumIn()
-
-		iVal := 1
-		for iArg := 0; iArg < numIn; iArg++ {
-
-			arg := handlerType.In(iArg)
-
-			switch arg.Kind() {
-			case reflect.Ptr:
-				//if the first argument is a context, yes
-				if arg.Elem() == contextType {
-					args = append(args, reflect.ValueOf(&ctx))
-					continue
-				}
-			case reflect.String:
-				args = append(args, reflect.ValueOf(match[iVal]))
-				iVal++
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				val := match[iVal]
-				intVal, _ := strconv.Atoi(val)
-				args = append(args, reflect.ValueOf(intVal))
-				iVal++
-			}
-		}
+		args := getArgsForFunction(route.handler, &ctx, match)
 
 		ret, err := s.safelyCall(route.handler, args)
 		if err != nil {
@@ -406,6 +380,37 @@ func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused 
 	}
 	ctx.Abort(404, "Page not found")
 	return
+}
+
+func getArgsForFunction(function reflect.Value, ctx *Context, values []string) []reflect.Value {
+	var args []reflect.Value
+	functionType := function.Type()
+
+	numIn := functionType.NumIn()
+
+	iVal := 1
+	for iArg := 0; iArg < numIn; iArg++ {
+
+		arg := functionType.In(iArg)
+
+		switch arg.Kind() {
+		case reflect.Ptr:
+			//if the first argument is a context, yes
+			if arg.Elem() == contextType {
+				args = append(args, reflect.ValueOf(ctx))
+				continue
+			}
+		case reflect.String:
+			args = append(args, reflect.ValueOf(values[iVal]))
+			iVal++
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			val := values[iVal]
+			intVal, _ := strconv.Atoi(val)
+			args = append(args, reflect.ValueOf(intVal))
+			iVal++
+		}
+	}
+	return args
 }
 
 // SetLogger sets the logger for server s
