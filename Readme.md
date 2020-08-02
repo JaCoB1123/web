@@ -1,5 +1,3 @@
-[![Build Status](https://travis-ci.org/hoisie/web.svg?branch=master)](https://travis-ci.org/hoisie/web)
-
 # web.go
 
 web.go is the simplest way to write web applications in the Go programming language. It's ideal for writing simple, performant backend web services. 
@@ -20,26 +18,35 @@ Make sure you have the a working Go environment. See the [install instructions](
 
 To install web.go, simply run:
 
-    go get github.com/hoisie/web
+    go get github.com/JaCoB1123/web
 
 To compile it from source:
 
-    git clone git://github.com/hoisie/web.git
+    git clone git://github.com/JaCoB1123/web.git
     cd web && go build
 
 ## Example
 ```go
 package main
-    
+
 import (
-    "github.com/hoisie/web"
+        "fmt"
+
+        "github.com/JaCoB1123/web"
 )
-    
-func hello(val string) string { return "hello " + val } 
-    
+
+func hello(val string) string {
+        return "hello " + val + "\n"
+}
+
+func helloInt(intval int, val string) string {
+    return fmt.Sprintf("hello %s (%d)\n", val, intval)
+}
+
 func main() {
-    web.Get("/(.*)", hello)
-    web.Run("0.0.0.0:9999")
+        web.Get("/([-+]?[0-9]*)/(.*)", helloInt)
+        web.Get("/(.*)", hello)
+        web.Run("0.0.0.0:9999")
 }
 ```
 
@@ -47,7 +54,7 @@ To run the application, put the code in a file called hello.go and run:
 
     go run hello.go
     
-You can point your browser to http://localhost:9999/world . 
+You can point your browser to http://localhost:9999/13/world . 
 
 ### Getting parameters
 
@@ -57,7 +64,7 @@ Route handlers may contain a pointer to web.Context as their first parameter. Th
 package main
 
 import (
-    "github.com/hoisie/web"
+    "github.com/JaCoB1123/web"
 )
     
 func hello(ctx *web.Context, val string) { 
@@ -77,14 +84,6 @@ In this example, if you visit `http://localhost:9999/?a=1&b=2`, you'll see the f
     a 1
     b 2
 
-## Documentation
-
-API docs are hosted at https://hoisie.github.io/web/
-
-If you use web.go, I'd greatly appreciate a quick message about what you're building with it. This will help me get a sense of usage patterns, and helps me focus development efforts on features that people will actually use. 
-
 ## About
 
-web.go was written by Michael Hoisie
-
-
+Based on the awesome [web.go](https://github.com/hoisie/web) project by Michael Hoisie
