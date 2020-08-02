@@ -1,0 +1,19 @@
+kind: pipeline
+type: docker
+name: default
+
+workspace:
+  base: /go
+  path: src/git.javil.eu/jacob1123/web
+
+steps:
+- name: backend
+  image: golang:1.14
+  environment:
+    CGO_ENABLED: 0
+    GOOS: linux
+    GOARCH: amd64
+  commands:
+    - go get
+    - go build
+    - go test
