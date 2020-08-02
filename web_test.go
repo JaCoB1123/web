@@ -21,6 +21,48 @@ func init() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 }
 
+type dummyConnection struct {
+	fd           io.ReadWriteCloser
+	req          *http.Request
+	headers      http.Header
+	wroteHeaders bool
+}
+
+func (conn *dummyConnection) Write(data []byte) (n int, err error) {
+	if !conn.wroteHeaders {
+		conn.WriteHeader(200)
+	}
+
+	if conn.req.Method == "HEAD" {
+		return 0, errors.New("Body Not Allowed")
+	}
+
+	return conn.fd.Write(data)
+}
+func (conn *dummyConnection) Header() http.Header {
+	return conn.headers
+}
+func (conn *dummyConnection) Close() { conn.fd.Close() }
+func (conn *dummyConnection) WriteHeader(status int) {
+	if !conn.wroteHeaders {
+		conn.wroteHeaders = true
+
+		var buf bytes.Buffer
+		text := http.StatusText(status)
+
+		fmt.Fprintf(&buf, "HTTP/1.1 %d %s\r\n", status, text)
+
+		for k, v := range conn.headers {
+			for _, i := range v {
+				buf.WriteString(k + ": " + i + "\r\n")
+			}
+		}
+
+		buf.WriteString("\r\n")
+		conn.fd.Write(buf.Bytes())
+	}
+}
+
 // ioBuffer is a helper that implements io.ReadWriteCloser,
 // which is helpful in imitating a net.Conn
 type ioBuffer struct {
@@ -104,7 +146,7 @@ func getTestResponse(method string, path string, body string, headers map[string
 	var buf bytes.Buffer
 
 	tcpb := ioBuffer{input: nil, output: &buf}
-	c := scgiConn{wroteHeaders: false, req: req, headers: make(map[string][]string), fd: &tcpb}
+	c := dummyConnection{wroteHeaders: false, req: req, headers: make(map[string][]string), fd: &tcpb}
 	mainServer.Process(&c, req)
 	return buildTestResponse(&buf)
 }
@@ -389,90 +431,6 @@ func buildTestScgiRequest(method string, path string, body string, headers map[s
 	return &buf
 }
 
-func TestScgi(t *testing.T) {
-	for _, test := range tests {
-		req := buildTestScgiRequest(test.method, test.path, test.body, test.headers)
-		var output bytes.Buffer
-		nb := ioBuffer{input: req, output: &output}
-		mainServer.handleScgiRequest(&nb)
-		resp := buildTestResponse(&output)
-
-		if resp.statusCode != test.expectedStatus {
-			t.Fatalf("expected status %d got %d", test.expectedStatus, resp.statusCode)
-		}
-
-		if resp.body != test.expectedBody {
-			t.Fatalf("Scgi expected %q got %q", test.expectedBody, resp.body)
-		}
-	}
-}
-
-func TestScgiHead(t *testing.T) {
-	for _, test := range tests {
-
-		if test.method != "GET" {
-			continue
-		}
-
-		req := buildTestScgiRequest("GET", test.path, test.body, make(map[string][]string))
-		var output bytes.Buffer
-		nb := ioBuffer{input: req, output: &output}
-		mainServer.handleScgiRequest(&nb)
-		getresp := buildTestResponse(&output)
-
-		req = buildTestScgiRequest("HEAD", test.path, test.body, make(map[string][]string))
-		var output2 bytes.Buffer
-		nb = ioBuffer{input: req, output: &output2}
-		mainServer.handleScgiRequest(&nb)
-		headresp := buildTestResponse(&output2)
-
-		if getresp.statusCode != headresp.statusCode {
-			t.Fatalf("head and get status differ. expected %d got %d", getresp.statusCode, headresp.statusCode)
-		}
-		if len(headresp.body) != 0 {
-			t.Fatalf("head request arrived with a body")
-		}
-
-		var cl []string
-		var getcl, headcl int
-		var hascl1, hascl2 bool
-
-		if cl, hascl1 = getresp.headers["Content-Length"]; hascl1 {
-			getcl, _ = strconv.Atoi(cl[0])
-		}
-
-		if cl, hascl2 = headresp.headers["Content-Length"]; hascl2 {
-			headcl, _ = strconv.Atoi(cl[0])
-		}
-
-		if hascl1 != hascl2 {
-			t.Fatalf("head and get: one has content-length, one doesn't")
-		}
-
-		if hascl1 == true && getcl != headcl {
-			t.Fatalf("head and get content-length differ")
-		}
-	}
-}
-
-func TestReadScgiRequest(t *testing.T) {
-	headers := map[string][]string{"User-Agent": {"web.go"}}
-	req := buildTestScgiRequest("POST", "/hello", "Hello world!", headers)
-	var s Server
-	httpReq, err := s.readScgiRequest(&ioBuffer{input: req, output: nil})
-	if err != nil {
-		t.Fatalf("Error while reading SCGI request: %s", err.Error())
-	}
-	if httpReq.ContentLength != 12 {
-		t.Fatalf("Content length mismatch, expected %d, got %d", 12, httpReq.ContentLength)
-	}
-	var body bytes.Buffer
-	io.Copy(&body, httpReq.Body)
-	if body.String() != "Hello world!" {
-		t.Fatalf("Body mismatch, expected %q, got %q ", "Hello world!", body.String())
-	}
-}
-
 func makeCookie(vals map[string]string) []*http.Cookie {
 	var cookies []*http.Cookie
 	for k, v := range vals {
@@ -570,7 +528,7 @@ func TestColorOutputDefault(t *testing.T) {
 	req := buildTestRequest("GET", "/test", "", nil, nil)
 	var buf bytes.Buffer
 	iob := ioBuffer{input: nil, output: &buf}
-	c := scgiConn{wroteHeaders: false, req: req, headers: make(map[string][]string), fd: &iob}
+	c := dummyConnection{wroteHeaders: false, req: req, headers: make(map[string][]string), fd: &iob}
 	s.Process(&c, req)
 	if !strings.Contains(logOutput.String(), "\x1b") {
 		t.Fatalf("The default log output does not seem to be colored")
@@ -590,33 +548,10 @@ func TestNoColorOutput(t *testing.T) {
 	req := buildTestRequest("GET", "/test", "", nil, nil)
 	var buf bytes.Buffer
 	iob := ioBuffer{input: nil, output: &buf}
-	c := scgiConn{wroteHeaders: false, req: req, headers: make(map[string][]string), fd: &iob}
+	c := dummyConnection{wroteHeaders: false, req: req, headers: make(map[string][]string), fd: &iob}
 	s.Process(&c, req)
 	if strings.Contains(logOutput.String(), "\x1b") {
 		t.Fatalf("The log contains color escape codes")
-	}
-}
-
-// a malformed SCGI request should be discarded and not cause a panic
-func TestMaformedScgiRequest(t *testing.T) {
-	var headerBuf bytes.Buffer
-
-	headerBuf.WriteString("CONTENT_LENGTH")
-	headerBuf.WriteByte(0)
-	headerBuf.WriteString("0")
-	headerBuf.WriteByte(0)
-	headerData := headerBuf.Bytes()
-
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "%d:", len(headerData))
-	buf.Write(headerData)
-	buf.WriteByte(',')
-
-	var output bytes.Buffer
-	nb := ioBuffer{input: &buf, output: &output}
-	mainServer.handleScgiRequest(&nb)
-	if !nb.closed {
-		t.Fatalf("The connection should have been closed")
 	}
 }
 
@@ -632,7 +567,7 @@ func TestCustomHandlerContentType(t *testing.T) {
 	s.SetLogger(log.New(ioutil.Discard, "", 0))
 	s.Handle("/testHandler", "GET", &TestHandler{})
 	req := buildTestRequest("GET", "/testHandler", "", nil, nil)
-	c := scgiConn{wroteHeaders: false, req: req, headers: make(map[string][]string), fd: nil}
+	c := dummyConnection{wroteHeaders: false, req: req, headers: make(map[string][]string), fd: nil}
 	s.Process(&c, req)
 	if c.headers["Content-Type"] != nil {
 		t.Fatalf("A default Content-Type should not be present when using a custom HTTP handler")
@@ -653,7 +588,7 @@ func BenchmarkProcessGet(b *testing.B) {
 	req := buildTestRequest("GET", "/echo/hi", "", nil, nil)
 	var buf bytes.Buffer
 	iob := ioBuffer{input: nil, output: &buf}
-	c := scgiConn{wroteHeaders: false, req: req, headers: make(map[string][]string), fd: &iob}
+	c := dummyConnection{wroteHeaders: false, req: req, headers: make(map[string][]string), fd: &iob}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -670,7 +605,7 @@ func BenchmarkProcessPost(b *testing.B) {
 	req := buildTestRequest("POST", "/echo/hi", "", nil, nil)
 	var buf bytes.Buffer
 	iob := ioBuffer{input: nil, output: &buf}
-	c := scgiConn{wroteHeaders: false, req: req, headers: make(map[string][]string), fd: &iob}
+	c := dummyConnection{wroteHeaders: false, req: req, headers: make(map[string][]string), fd: &iob}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
