@@ -5,8 +5,6 @@ package web
 import (
 	"mime"
 	"net/http"
-	"os"
-	"path"
 	"reflect"
 	"strings"
 )
@@ -109,24 +107,8 @@ func (ctx *Context) SetCookie(cookie *http.Cookie) {
 // small optimization: cache the context type instead of repeteadly calling reflect.Typeof
 var contextType reflect.Type
 
-var defaultStaticDirs []string
-
 func init() {
 	contextType = reflect.TypeOf(Context{})
-	//find the location of the exe file
-	wd, _ := os.Getwd()
-	arg0 := path.Clean(os.Args[0])
-	var exeFile string
-	if strings.HasPrefix(arg0, "/") {
-		exeFile = arg0
-	} else {
-		//TODO for robustness, search each directory in $PATH
-		exeFile = path.Join(wd, arg0)
-	}
-	parent, _ := path.Split(exeFile)
-	defaultStaticDirs = append(defaultStaticDirs, path.Join(parent, "static"))
-	defaultStaticDirs = append(defaultStaticDirs, path.Join(wd, "static"))
-	return
 }
 
 // Config is the configuration of the main server.
