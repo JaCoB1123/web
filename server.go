@@ -29,7 +29,7 @@ type ServerConfig struct {
 // Server represents a web.go server.
 type Server struct {
 	Config       *ServerConfig
-	routes       []route
+	routes       []*route
 	Logger       *log.Logger
 	Env          map[string]interface{}
 	TypeHandlers []func(reflect.Type, []string, int, *Context) (reflect.Value, error)
@@ -86,13 +86,13 @@ func (s *Server) addRoute(pathRegex string, method string, handler interface{}) 
 
 	switch handler.(type) {
 	case http.Handler:
-		s.routes = append(s.routes, route{path: pathRegex, pathRegex: cr, method: method, httpHandler: handler.(http.Handler)})
+		s.routes = append(s.routes, &route{path: pathRegex, pathRegex: cr, method: method, httpHandler: handler.(http.Handler)})
 	case reflect.Value:
 		fv := handler.(reflect.Value)
-		s.routes = append(s.routes, route{path: pathRegex, pathRegex: cr, method: method, handler: fv})
+		s.routes = append(s.routes, &route{path: pathRegex, pathRegex: cr, method: method, handler: fv})
 	default:
 		fv := reflect.ValueOf(handler)
-		s.routes = append(s.routes, route{path: pathRegex, pathRegex: cr, method: method, handler: fv})
+		s.routes = append(s.routes, &route{path: pathRegex, pathRegex: cr, method: method, handler: fv})
 	}
 }
 
@@ -250,7 +250,7 @@ func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused 
 		}
 
 		if route.httpHandler != nil {
-			unused = &route
+			unused = route
 			// We can not handle custom http handlers here, give back to the caller.
 			return
 		}
