@@ -86,13 +86,28 @@ func (s *Server) addRoute(pathRegex string, method string, handler interface{}) 
 
 	switch handler.(type) {
 	case http.Handler:
-		s.routes = append(s.routes, &route{path: pathRegex, pathRegex: cr, method: method, httpHandler: handler.(http.Handler)})
+		s.routes = append(s.routes, &route{
+			path:        pathRegex,
+			pathRegex:   cr,
+			method:      method,
+			httpHandler: handler.(http.Handler),
+		})
 	case reflect.Value:
 		fv := handler.(reflect.Value)
-		s.routes = append(s.routes, &route{path: pathRegex, pathRegex: cr, method: method, handler: fv})
+		s.routes = append(s.routes, &route{
+			path:      pathRegex,
+			pathRegex: cr,
+			method:    method,
+			handler:   fv,
+		})
 	default:
 		fv := reflect.ValueOf(handler)
-		s.routes = append(s.routes, &route{path: pathRegex, pathRegex: cr, method: method, handler: fv})
+		s.routes = append(s.routes, &route{
+			path:      pathRegex,
+			pathRegex: cr,
+			method:    method,
+			handler:   fv,
+		})
 	}
 }
 
