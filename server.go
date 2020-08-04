@@ -75,6 +75,36 @@ type route struct {
 	method      string
 	handler     reflect.Value
 	httpHandler http.Handler
+	runner      func() reflect.Value
+}
+
+func (route *route) call() reflect.Value {
+	if route.httpHandler != nil {
+		route.httpHandler.ServeHTTP(nil, nil)
+		return reflect.Value{}
+	}
+
+	return reflect.Value{}
+}
+
+func newRouteFromHandler(pathRegex string, cr *regexp.Regexp, method string, handler http.Handler) *route {
+	route := newRoute(pathRegex, cr, method)
+	route.httpHandler = handler
+	return route
+}
+
+func newRouteFromValue(pathRegex string, cr *regexp.Regexp, method string, handler reflect.Value) *route {
+	route := newRoute(pathRegex, cr, method)
+	route.handler = handler
+	return route
+}
+
+func newRoute(pathRegex string, cr *regexp.Regexp, method string) *route {
+	return &route{
+		path:      pathRegex,
+		pathRegex: cr,
+		method:    method,
+	}
 }
 
 func (s *Server) addRoute(pathRegex string, method string, handler interface{}) {
@@ -86,28 +116,13 @@ func (s *Server) addRoute(pathRegex string, method string, handler interface{}) 
 
 	switch handler.(type) {
 	case http.Handler:
-		s.routes = append(s.routes, &route{
-			path:        pathRegex,
-			pathRegex:   cr,
-			method:      method,
-			httpHandler: handler.(http.Handler),
-		})
+		s.routes = append(s.routes, newRouteFromHandler(pathRegex, cr, method, handler.(http.Handler)))
 	case reflect.Value:
 		fv := handler.(reflect.Value)
-		s.routes = append(s.routes, &route{
-			path:      pathRegex,
-			pathRegex: cr,
-			method:    method,
-			handler:   fv,
-		})
+		s.routes = append(s.routes, newRouteFromValue(pathRegex, cr, method, fv))
 	default:
 		fv := reflect.ValueOf(handler)
-		s.routes = append(s.routes, &route{
-			path:      pathRegex,
-			pathRegex: cr,
-			method:    method,
-			handler:   fv,
-		})
+		s.routes = append(s.routes, newRouteFromValue(pathRegex, cr, method, fv))
 	}
 }
 
