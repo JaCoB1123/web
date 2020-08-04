@@ -221,10 +221,6 @@ func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused 
 	requestPath := req.URL.Path
 	ctx := Context{req, map[string]string{}, s, w}
 
-	//set some default headers
-	ctx.SetHeader("Server", "web.go", true)
-	tm := time.Now().UTC()
-
 	//ignore errors from ParseForm because it's usually harmless.
 	req.ParseForm()
 	if len(req.Form) > 0 {
@@ -233,9 +229,8 @@ func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused 
 		}
 	}
 
+	tm := time.Now().UTC()
 	defer s.logRequest(ctx, tm)
-
-	ctx.SetHeader("Date", webTime(tm), true)
 
 	for i := 0; i < len(s.routes); i++ {
 		route := s.routes[i]
