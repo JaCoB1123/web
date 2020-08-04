@@ -218,7 +218,6 @@ func (s *Server) ttyColor(msg string, colorCode string) string {
 // route. The caller is then responsible for calling the httpHandler associated
 // with the returned route.
 func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused *route) {
-	requestPath := req.URL.Path
 	ctx := Context{req, map[string]string{}, s, w}
 
 	//ignore errors from ParseForm because it's usually harmless.
@@ -232,6 +231,7 @@ func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused 
 	tm := time.Now().UTC()
 	defer s.logRequest(ctx, tm)
 
+	requestPath := req.URL.Path
 	for i := 0; i < len(s.routes); i++ {
 		route := s.routes[i]
 		cr := route.pathRegex
