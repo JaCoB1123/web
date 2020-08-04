@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
-	"path"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -169,32 +168,6 @@ func (s *Server) safelyCall(function reflect.Value, args []reflect.Value) (resp 
 	return function.Call(args), nil
 }
 
-// tryServingFile attempts to serve a static file, and returns
-// whether or not the operation is successful.
-// It checks the following directories for the file, in order:
-// 1) Config.StaticDir
-// 2) The 'static' directory in the parent directory of the executable.
-// 3) The 'static' directory in the current working directory
-func (s *Server) tryServingFile(name string, req *http.Request, w http.ResponseWriter) bool {
-	//try to serve a static file
-	if s.Config.StaticDir != "" {
-		staticFile := path.Join(s.Config.StaticDir, name)
-		if fileExists(staticFile) {
-			http.ServeFile(w, req, staticFile)
-			return true
-		}
-	} else {
-		for _, staticDir := range defaultStaticDirs {
-			staticFile := path.Join(staticDir, name)
-			if fileExists(staticFile) {
-				http.ServeFile(w, req, staticFile)
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func (s *Server) logRequest(ctx Context, sTime time.Time) {
 	//log the request
 	req := ctx.Request
@@ -245,12 +218,7 @@ func (s *Server) ttyColor(msg string, colorCode string) string {
 // route. The caller is then responsible for calling the httpHandler associated
 // with the returned route.
 func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused *route) {
-	requestPath := req.URL.Path
 	ctx := Context{req, map[string]string{}, s, w}
-
-	//set some default headers
-	ctx.SetHeader("Server", "web.go", true)
-	tm := time.Now().UTC()
 
 	//ignore errors from ParseForm because it's usually harmless.
 	req.ParseForm()
@@ -260,16 +228,10 @@ func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused 
 		}
 	}
 
+	tm := time.Now().UTC()
 	defer s.logRequest(ctx, tm)
 
-	ctx.SetHeader("Date", webTime(tm), true)
-
-	if req.Method == "GET" || req.Method == "HEAD" {
-		if s.tryServingFile(requestPath, req, w) {
-			return
-		}
-	}
-
+	requestPath := req.URL.Path
 	for i := 0; i < len(s.routes); i++ {
 		route := s.routes[i]
 		cr := route.pathRegex
@@ -324,14 +286,6 @@ func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused 
 		return
 	}
 
-	// try serving index.html or index.htm
-	if req.Method == "GET" || req.Method == "HEAD" {
-		if s.tryServingFile(path.Join(requestPath, "index.html"), req, w) {
-			return
-		} else if s.tryServingFile(path.Join(requestPath, "index.htm"), req, w) {
-			return
-		}
-	}
 	ctx.Abort(404, "Page not found")
 	return
 }
