@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -241,6 +242,12 @@ func (s *Server) ttyColor(msg string, colorCode string) string {
 	}
 }
 
+var contextPool = sync.Pool{
+	New: func() interface{} {
+		return &Context{Params: map[string]string{}}
+	},
+}
+
 // the main route handler in web.go
 // Tries to handle the given request.
 // Finds the route matching the request, and execute the callback associated
@@ -248,7 +255,9 @@ func (s *Server) ttyColor(msg string, colorCode string) string {
 // route. The caller is then responsible for calling the httpHandler associated
 // with the returned route.
 func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused *route) {
-	ctx := Context{req, map[string]string{}, s, w}
+	ctx := contextPool.Get().(*Context)
+	ctx.Reset(req, s, w)
+	defer contextPool.Put(ctx)
 
 	//ignore errors from ParseForm because it's usually harmless.
 	req.ParseForm()
@@ -288,7 +297,7 @@ func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused 
 		// set the default content-type
 		ctx.SetHeader("Content-Type", "text/html; charset=utf-8", true)
 
-		args := s.getArgsForFunction(route.handler, &ctx, match)
+		args := s.getArgsForFunction(route.handler, ctx, match)
 
 		ret, err := s.safelyCall(route.handler, args)
 		if err != nil {

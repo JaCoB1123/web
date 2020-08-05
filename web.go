@@ -20,6 +20,15 @@ type Context struct {
 	http.ResponseWriter
 }
 
+func (ctx *Context) Reset(req *http.Request, s *Server, w http.ResponseWriter) {
+	ctx.Request = req
+	ctx.Server = s
+	ctx.ResponseWriter = w
+	for k := range ctx.Params {
+		delete(ctx.Params, k)
+	}
+}
+
 // WriteString writes string data into the response object.
 func (ctx *Context) WriteString(content string) {
 	ctx.ResponseWriter.Write([]byte(content))
