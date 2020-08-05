@@ -27,13 +27,15 @@ type ServerConfig struct {
 	ColorOutput  bool
 }
 
+type typeHandlerDelegate func(reflect.Type, []string, int, *Context) (reflect.Value, error)
+
 // Server represents a web.go server.
 type Server struct {
 	Config       *ServerConfig
 	routes       []*route
 	Logger       *log.Logger
 	Env          map[string]interface{}
-	TypeHandlers []func(reflect.Type, []string, int, *Context) (reflect.Value, error)
+	TypeHandlers []typeHandlerDelegate
 	encKey       []byte
 	signKey      []byte
 }
@@ -43,7 +45,7 @@ func NewServer() *Server {
 		Config:       Config,
 		Logger:       log.New(os.Stdout, "", log.Ldate|log.Ltime),
 		Env:          map[string]interface{}{},
-		TypeHandlers: []func(reflect.Type, []string, int, *Context) (reflect.Value, error){getString, getInt, getContext},
+		TypeHandlers: []typeHandlerDelegate{getString, getInt, getContext},
 	}
 }
 
