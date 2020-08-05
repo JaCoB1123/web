@@ -73,13 +73,16 @@ func (s *Server) initServer() {
 }
 
 type route struct {
-	path        string
-	pathRegex   *regexp.Regexp
-	method      string
-	handler     reflect.Value
-	httpHandler http.Handler
-	runner      func() reflect.Value
+	path         string
+	pathRegex    *regexp.Regexp
+	method       string
+	handler      reflect.Value
+	httpHandler  http.Handler
+	runner       func() reflect.Value
+	argsBuilders []func([]string, *Context) reflect.Value
 }
+
+var dummyArgs = []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"}
 
 func (route *route) call() reflect.Value {
 	if route.httpHandler != nil {
@@ -96,10 +99,54 @@ func newRouteFromHandler(pathRegex string, cr *regexp.Regexp, method string, han
 	return route
 }
 
-func newRouteFromValue(pathRegex string, cr *regexp.Regexp, method string, handler reflect.Value) *route {
+func (s *Server) newRouteFromValue(pathRegex string, cr *regexp.Regexp, method string, handler reflect.Value) *route {
 	route := newRoute(pathRegex, cr, method)
 	route.handler = handler
+	route.argsBuilders = []func([]string, *Context) reflect.Value{}
+
+	var args []reflect.Value
+	functionType := handler.Type()
+
+	numIn := functionType.NumIn()
+
+	iVal := 1
+	for iArg := 0; iArg < numIn; iArg++ {
+		arg := functionType.In(iArg)
+		iValCopy := iVal
+
+		var err error
+		var result reflect.Value
+		var typeHandler typeHandlerDelegate
+		for i := range s.TypeHandlers {
+			typeHandler = s.TypeHandlers[i]
+			result, err = typeHandler(arg, dummyArgs, iVal, nil)
+			if err != NotSupported {
+				break
+			}
+		}
+
+		route.argsBuilders = append(route.argsBuilders, func(values []string, ctx *Context) reflect.Value {
+			result, _ = typeHandler(arg, values, iValCopy, ctx)
+			return result
+		})
+
+		args = append(args, result)
+		if err == NoValueNeeded {
+			continue
+		}
+
+		iVal++
+	}
+
 	return route
+}
+
+func (s *Server) getArgsForFunction(route *route, ctx *Context, values []string) []reflect.Value {
+	var args []reflect.Value
+	for _, argBuilder := range route.argsBuilders {
+		args = append(args, argBuilder(values, ctx))
+	}
+	return args
 }
 
 func newRoute(pathRegex string, cr *regexp.Regexp, method string) *route {
@@ -122,10 +169,10 @@ func (s *Server) addRoute(pathRegex string, method string, handler interface{}) 
 		s.routes = append(s.routes, newRouteFromHandler(pathRegex, cr, method, handler.(http.Handler)))
 	case reflect.Value:
 		fv := handler.(reflect.Value)
-		s.routes = append(s.routes, newRouteFromValue(pathRegex, cr, method, fv))
+		s.routes = append(s.routes, s.newRouteFromValue(pathRegex, cr, method, fv))
 	default:
 		fv := reflect.ValueOf(handler)
-		s.routes = append(s.routes, newRouteFromValue(pathRegex, cr, method, fv))
+		s.routes = append(s.routes, s.newRouteFromValue(pathRegex, cr, method, fv))
 	}
 }
 
@@ -299,7 +346,7 @@ func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused 
 		// set the default content-type
 		ctx.SetHeader("Content-Type", "text/html; charset=utf-8", true)
 
-		args := s.getArgsForFunction(route.handler, ctx, match)
+		args := s.getArgsForFunction(route, ctx, match)
 
 		ret, err := s.safelyCall(route.handler, args)
 		if err != nil {
@@ -358,36 +405,6 @@ func getContext(t reflect.Type, values []string, valueIndex int, ctx *Context) (
 	}
 
 	return reflect.ValueOf(ctx), NoValueNeeded
-}
-
-func (s *Server) getArgsForFunction(function reflect.Value, ctx *Context, values []string) []reflect.Value {
-	var args []reflect.Value
-	functionType := function.Type()
-
-	numIn := functionType.NumIn()
-
-	iVal := 1
-	for iArg := 0; iArg < numIn; iArg++ {
-
-		arg := functionType.In(iArg)
-
-		var err error
-		var result reflect.Value
-		for _, typeHandler := range s.TypeHandlers {
-			result, err = typeHandler(arg, values, iVal, ctx)
-			if err != NotSupported {
-				break
-			}
-		}
-
-		args = append(args, result)
-		if err == NoValueNeeded {
-			continue
-		}
-
-		iVal++
-	}
-	return args
 }
 
 // SetLogger sets the logger for server s
