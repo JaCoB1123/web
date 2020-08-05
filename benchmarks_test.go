@@ -18,8 +18,6 @@ func BenchmarkHelloWorldTextonly(b *testing.B) {
 		return "hello " + val + "\n"
 	})
 	s.initServer()
-	b.ReportAllocs()
-	b.ResetTimer()
 
 	req := buildTestRequest("GET", "/world", "", nil, nil)
 	var buf bytes.Buffer
@@ -41,8 +39,6 @@ func BenchmarkHelloWorldNumber(b *testing.B) {
 		return "hello " + val + "\n"
 	})
 	s.initServer()
-	b.ReportAllocs()
-	b.ResetTimer()
 
 	req := buildTestRequest("GET", "/123456/world", "", nil, nil)
 	var buf bytes.Buffer
