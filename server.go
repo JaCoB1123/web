@@ -177,12 +177,12 @@ func (s *Server) addRoute(pathRegex string, method string, handler interface{}) 
 }
 
 // ServeHTTP is the interface method for Go's http server package
-func (s Server) ServeHTTP(c http.ResponseWriter, req *http.Request) {
+func (s *Server) ServeHTTP(c http.ResponseWriter, req *http.Request) {
 	s.Process(c, req)
 }
 
 // Process invokes the routing system for server s
-func (s Server) Process(c http.ResponseWriter, req *http.Request) {
+func (s *Server) Process(c http.ResponseWriter, req *http.Request) {
 	route := s.routeHandler(req, c)
 	if route != nil {
 		route.httpHandler.ServeHTTP(c, req)
