@@ -334,10 +334,10 @@ func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused 
 		// set the default content-type
 		ctx.SetHeader("Content-Type", "text/html; charset=utf-8", true)
 
-		var args []reflect.Value
-		for _, argBuilder := range route.argsBuilders {
+		args := make([]reflect.Value, len(route.argsBuilders))
+		for i, argBuilder := range route.argsBuilders {
 			arg := argBuilder(match, ctx)
-			args = append(args, arg)
+			args[i] = arg
 		}
 
 		ret, err := s.safelyCall(route.handler, args)
