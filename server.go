@@ -141,14 +141,6 @@ func (s *Server) newRouteFromValue(pathRegex string, cr *regexp.Regexp, method s
 	return route
 }
 
-func (s *Server) getArgsForFunction(route *route, ctx *Context, values []string) []reflect.Value {
-	var args []reflect.Value
-	for _, argBuilder := range route.argsBuilders {
-		args = append(args, argBuilder(values, ctx))
-	}
-	return args
-}
-
 func newRoute(pathRegex string, cr *regexp.Regexp, method string) *route {
 	return &route{
 		path:      pathRegex,
@@ -297,6 +289,13 @@ var contextPool = sync.Pool{
 	},
 }
 
+var argsPool = sync.Pool{
+	New: func() interface{} {
+		var args []reflect.Value
+		return args
+	},
+}
+
 // the main route handler in web.go
 // Tries to handle the given request.
 // Finds the route matching the request, and execute the callback associated
@@ -346,9 +345,16 @@ func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused 
 		// set the default content-type
 		ctx.SetHeader("Content-Type", "text/html; charset=utf-8", true)
 
-		args := s.getArgsForFunction(route, ctx, match)
+		args := argsPool.Get().([]reflect.Value)
+		for _, argBuilder := range route.argsBuilders {
+			args = append(args, argBuilder(match, ctx))
+		}
 
 		ret, err := s.safelyCall(route.handler, args)
+
+		args = args[:0]
+		argsPool.Put(args)
+
 		if err != nil {
 			//there was an error or panic while calling the handler
 			ctx.Abort(500, "Server Error")
