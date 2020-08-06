@@ -150,7 +150,7 @@ func newRoute(pathRegex string, cr *regexp.Regexp, method string) *route {
 }
 
 func (s *Server) addRoute(pathRegex string, method string, handler interface{}) {
-	cr, err := regexp.Compile(pathRegex)
+	cr, err := regexp.Compile("^" + pathRegex + "$")
 	if err != nil {
 		s.Logger.Printf("Error in route regex %q\n", pathRegex)
 		return
