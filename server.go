@@ -327,12 +327,8 @@ func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused 
 			continue
 		}
 
-		if !cr.MatchString(requestPath) {
-			continue
-		}
 		match := cr.FindStringSubmatch(requestPath)
-
-		if len(match[0]) != len(requestPath) {
+		if match == nil || len(match[0]) != len(requestPath) {
 			continue
 		}
 
