@@ -289,13 +289,6 @@ var contextPool = sync.Pool{
 	},
 }
 
-var argsPool = sync.Pool{
-	New: func() interface{} {
-		var args []reflect.Value
-		return args
-	},
-}
-
 // the main route handler in web.go
 // Tries to handle the given request.
 // Finds the route matching the request, and execute the callback associated
@@ -332,24 +325,22 @@ func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused 
 			continue
 		}
 
+		// We can not handle custom http handlers here, give back to the caller.
 		if route.httpHandler != nil {
 			unused = route
-			// We can not handle custom http handlers here, give back to the caller.
 			return
 		}
 
 		// set the default content-type
 		ctx.SetHeader("Content-Type", "text/html; charset=utf-8", true)
 
-		args := argsPool.Get().([]reflect.Value)
+		var args []reflect.Value
 		for _, argBuilder := range route.argsBuilders {
-			args = append(args, argBuilder(match, ctx))
+			arg := argBuilder(match, ctx)
+			args = append(args, arg)
 		}
 
 		ret, err := s.safelyCall(route.handler, args)
-
-		args = args[:0]
-		argsPool.Put(args)
 
 		if err != nil {
 			//there was an error or panic while calling the handler
