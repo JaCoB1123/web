@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -26,13 +27,15 @@ type ServerConfig struct {
 	ColorOutput  bool
 }
 
+type typeHandlerDelegate func(reflect.Type, []string, int, *Context) (reflect.Value, error)
+
 // Server represents a web.go server.
 type Server struct {
 	Config       *ServerConfig
-	routes       []route
+	routes       []*route
 	Logger       *log.Logger
 	Env          map[string]interface{}
-	TypeHandlers []func(reflect.Type, []string, int, *Context) (reflect.Value, error)
+	TypeHandlers []typeHandlerDelegate
 	encKey       []byte
 	signKey      []byte
 }
@@ -42,7 +45,7 @@ func NewServer() *Server {
 		Config:       Config,
 		Logger:       log.New(os.Stdout, "", log.Ldate|log.Ltime),
 		Env:          map[string]interface{}{},
-		TypeHandlers: []func(reflect.Type, []string, int, *Context) (reflect.Value, error){getString, getInt, getContext},
+		TypeHandlers: []typeHandlerDelegate{getString, getInt, getContext},
 	}
 }
 
@@ -70,15 +73,84 @@ func (s *Server) initServer() {
 }
 
 type route struct {
-	path        string
-	pathRegex   *regexp.Regexp
-	method      string
-	handler     reflect.Value
-	httpHandler http.Handler
+	path         string
+	pathRegex    *regexp.Regexp
+	method       string
+	handler      reflect.Value
+	httpHandler  http.Handler
+	runner       func() reflect.Value
+	argsBuilders []func([]string, *Context) reflect.Value
+}
+
+var dummyArgs = []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"}
+
+func (route *route) call() reflect.Value {
+	if route.httpHandler != nil {
+		route.httpHandler.ServeHTTP(nil, nil)
+		return reflect.Value{}
+	}
+
+	return reflect.Value{}
+}
+
+func newRouteFromHandler(pathRegex string, cr *regexp.Regexp, method string, handler http.Handler) *route {
+	route := newRoute(pathRegex, cr, method)
+	route.httpHandler = handler
+	return route
+}
+
+func (s *Server) newRouteFromValue(pathRegex string, cr *regexp.Regexp, method string, handler reflect.Value) *route {
+	route := newRoute(pathRegex, cr, method)
+	route.handler = handler
+	route.argsBuilders = []func([]string, *Context) reflect.Value{}
+
+	var args []reflect.Value
+	functionType := handler.Type()
+
+	numIn := functionType.NumIn()
+
+	iVal := 1
+	for iArg := 0; iArg < numIn; iArg++ {
+		arg := functionType.In(iArg)
+		iValCopy := iVal
+
+		var err error
+		var result reflect.Value
+		var typeHandler typeHandlerDelegate
+		for i := range s.TypeHandlers {
+			typeHandler = s.TypeHandlers[i]
+			result, err = typeHandler(arg, dummyArgs, iVal, nil)
+			if err != NotSupported {
+				break
+			}
+		}
+
+		route.argsBuilders = append(route.argsBuilders, func(values []string, ctx *Context) reflect.Value {
+			result, _ = typeHandler(arg, values, iValCopy, ctx)
+			return result
+		})
+
+		args = append(args, result)
+		if err == NoValueNeeded {
+			continue
+		}
+
+		iVal++
+	}
+
+	return route
+}
+
+func newRoute(pathRegex string, cr *regexp.Regexp, method string) *route {
+	return &route{
+		path:      pathRegex,
+		pathRegex: cr,
+		method:    method,
+	}
 }
 
 func (s *Server) addRoute(pathRegex string, method string, handler interface{}) {
-	cr, err := regexp.Compile(pathRegex)
+	cr, err := regexp.Compile("^" + pathRegex + "$")
 	if err != nil {
 		s.Logger.Printf("Error in route regex %q\n", pathRegex)
 		return
@@ -86,23 +158,23 @@ func (s *Server) addRoute(pathRegex string, method string, handler interface{}) 
 
 	switch handler.(type) {
 	case http.Handler:
-		s.routes = append(s.routes, route{path: pathRegex, pathRegex: cr, method: method, httpHandler: handler.(http.Handler)})
+		s.routes = append(s.routes, newRouteFromHandler(pathRegex, cr, method, handler.(http.Handler)))
 	case reflect.Value:
 		fv := handler.(reflect.Value)
-		s.routes = append(s.routes, route{path: pathRegex, pathRegex: cr, method: method, handler: fv})
+		s.routes = append(s.routes, s.newRouteFromValue(pathRegex, cr, method, fv))
 	default:
 		fv := reflect.ValueOf(handler)
-		s.routes = append(s.routes, route{path: pathRegex, pathRegex: cr, method: method, handler: fv})
+		s.routes = append(s.routes, s.newRouteFromValue(pathRegex, cr, method, fv))
 	}
 }
 
 // ServeHTTP is the interface method for Go's http server package
-func (s Server) ServeHTTP(c http.ResponseWriter, req *http.Request) {
+func (s *Server) ServeHTTP(c http.ResponseWriter, req *http.Request) {
 	s.Process(c, req)
 }
 
 // Process invokes the routing system for server s
-func (s Server) Process(c http.ResponseWriter, req *http.Request) {
+func (s *Server) Process(c http.ResponseWriter, req *http.Request) {
 	route := s.routeHandler(req, c)
 	if route != nil {
 		route.httpHandler.ServeHTTP(c, req)
@@ -211,6 +283,12 @@ func (s *Server) ttyColor(msg string, colorCode string) string {
 	}
 }
 
+var contextPool = sync.Pool{
+	New: func() interface{} {
+		return &Context{Params: map[string]string{}}
+	},
+}
+
 // the main route handler in web.go
 // Tries to handle the given request.
 // Finds the route matching the request, and execute the callback associated
@@ -218,7 +296,9 @@ func (s *Server) ttyColor(msg string, colorCode string) string {
 // route. The caller is then responsible for calling the httpHandler associated
 // with the returned route.
 func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused *route) {
-	ctx := Context{req, map[string]string{}, s, w}
+	ctx := contextPool.Get().(*Context)
+	ctx.Reset(req, s, w)
+	defer contextPool.Put(ctx)
 
 	//ignore errors from ParseForm because it's usually harmless.
 	req.ParseForm()
@@ -240,27 +320,28 @@ func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused 
 			continue
 		}
 
-		if !cr.MatchString(requestPath) {
-			continue
-		}
 		match := cr.FindStringSubmatch(requestPath)
-
-		if len(match[0]) != len(requestPath) {
+		if match == nil || len(match[0]) != len(requestPath) {
 			continue
 		}
 
+		// We can not handle custom http handlers here, give back to the caller.
 		if route.httpHandler != nil {
-			unused = &route
-			// We can not handle custom http handlers here, give back to the caller.
+			unused = route
 			return
 		}
 
 		// set the default content-type
 		ctx.SetHeader("Content-Type", "text/html; charset=utf-8", true)
 
-		args := s.getArgsForFunction(route.handler, &ctx, match)
+		args := make([]reflect.Value, len(route.argsBuilders))
+		for i, argBuilder := range route.argsBuilders {
+			arg := argBuilder(match, ctx)
+			args[i] = arg
+		}
 
 		ret, err := s.safelyCall(route.handler, args)
+
 		if err != nil {
 			//there was an error or panic while calling the handler
 			ctx.Abort(500, "Server Error")
@@ -317,36 +398,6 @@ func getContext(t reflect.Type, values []string, valueIndex int, ctx *Context) (
 	}
 
 	return reflect.ValueOf(ctx), NoValueNeeded
-}
-
-func (s *Server) getArgsForFunction(function reflect.Value, ctx *Context, values []string) []reflect.Value {
-	var args []reflect.Value
-	functionType := function.Type()
-
-	numIn := functionType.NumIn()
-
-	iVal := 1
-	for iArg := 0; iArg < numIn; iArg++ {
-
-		arg := functionType.In(iArg)
-
-		var err error
-		var result reflect.Value
-		for _, typeHandler := range s.TypeHandlers {
-			result, err = typeHandler(arg, values, iVal, ctx)
-			if err != NotSupported {
-				break
-			}
-		}
-
-		args = append(args, result)
-		if err == NoValueNeeded {
-			continue
-		}
-
-		iVal++
-	}
-	return args
 }
 
 // SetLogger sets the logger for server s
