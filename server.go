@@ -240,7 +240,7 @@ func (s *Server) safelyCall(function reflect.Value, args []reflect.Value) (resp 
 	return function.Call(args), nil
 }
 
-func (s *Server) logRequest(ctx Context, sTime time.Time) {
+func (s *Server) logRequest(ctx *Context, sTime time.Time) {
 	//log the request
 	req := ctx.Request
 	requestPath := req.URL.Path
