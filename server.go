@@ -331,9 +331,6 @@ func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused 
 			return
 		}
 
-		// set the default content-type
-		ctx.SetHeader("Content-Type", "text/html; charset=utf-8", true)
-
 		args := make([]reflect.Value, len(route.argsBuilders))
 		for i, argBuilder := range route.argsBuilders {
 			arg := argBuilder(match, ctx)
@@ -341,6 +338,11 @@ func (s *Server) routeHandler(req *http.Request, w http.ResponseWriter) (unused 
 		}
 
 		ret, err := s.safelyCall(route.handler, args)
+
+		// set the default content-type
+		if ctx.ResponseWriter.Header().Get("Content-Type") == "" {
+			ctx.SetHeader("Content-Type", "text/html; charset=utf-8", true)
+		}
 
 		if err != nil {
 			//there was an error or panic while calling the handler
