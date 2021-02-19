@@ -385,10 +385,31 @@ func getString(t reflect.Type, values []string, valueIndex int, ctx *Context) (r
 }
 
 func getInt(t reflect.Type, values []string, valueIndex int, ctx *Context) (reflect.Value, error) {
+	intVal, err := strconv.Atoi(values[valueIndex])
+	if err != nil {
+		return reflect.Value{}, err
+	}
 	switch t.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		intVal, _ := strconv.Atoi(values[valueIndex])
-		return reflect.ValueOf(intVal), nil
+	case reflect.Int:
+		return reflect.ValueOf(int(intVal)), nil
+	case reflect.Int8:
+		return reflect.ValueOf(int8(intVal)), nil
+	case reflect.Int16:
+		return reflect.ValueOf(int16(intVal)), nil
+	case reflect.Int32:
+		return reflect.ValueOf(int32(intVal)), nil
+	case reflect.Int64:
+		return reflect.ValueOf(int64(intVal)), nil
+	case reflect.Uint:
+		return reflect.ValueOf(uint(intVal)), nil
+	case reflect.Uint8:
+		return reflect.ValueOf(uint8(intVal)), nil
+	case reflect.Uint16:
+		return reflect.ValueOf(uint16(intVal)), nil
+	case reflect.Uint32:
+		return reflect.ValueOf(uint32(intVal)), nil
+	case reflect.Uint64:
+		return reflect.ValueOf(uint64(intVal)), nil
 	default:
 		return reflect.Value{}, NotSupported
 	}
